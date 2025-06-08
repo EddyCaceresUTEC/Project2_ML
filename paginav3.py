@@ -18,9 +18,6 @@ import os
 X_lda = np.loadtxt("X_lda.txt", delimiter=",", skiprows=1)  # Saltar la fila del encabezado
 merged_df = pd.read_csv("merged_df_filtrado.csv")
 
-kmeans = KMeans(n_clusters=30, random_state=42)
-clusters = kmeans.fit_predict(X_lda)
-merged_df["cluster"] = clusters
 merged_df["imdbId"] = merged_df["imdbId"].astype(str)
 # Convertir valores no numéricos a NaN
 merged_df["movieId"] = pd.to_numeric(merged_df["movieId"], errors="coerce")
