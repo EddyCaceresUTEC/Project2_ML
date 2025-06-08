@@ -45,11 +45,76 @@ def buscar_similares(id, n=5, metodo="imdbId"):
     columnas_necesarias = ["Title", "Genre", "Year", "Poster"]
     return merged_df.iloc[idxs[0][1:]][columnas_necesarias]
 
+def filtrar_peliculas(genero=None, anio=None):
+    df = merged_df.copy()
+    if genero:
+        df = df[df["Genre"].str.contains(genero, case=False, na=False)]
+    if anio:
+        df = df[df["Year"] == str(anio)]  # Filtrar por año como string
+    columnas = ["Title", "Genre", "cluster", "x", "y", "Year", "imdbId", "movieId"]
+    return df[columnas]
+
 # =======================
 # STREAMLIT APP
 # =======================
 st.set_page_config(page_title="Recomendador de Películas", layout="centered")
-st.title("🎬 Recomendador de Películas")
+
+# Título centrado y en rojo
+st.markdown(
+    """
+    <h1 style="text-align: center; color: red; font-weight: bold;">
+         Movies Plus
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
+
+st.write("Explora el catálogo completo de películas. Usa los botones para navegar entre páginas.")
+
+# =======================
+# PAGINACIÓN
+# =======================
+# Número de pósters por página
+POSTERS_POR_PAGINA = 20
+
+# Estado inicial de la página
+if "pagina_actual" not in st.session_state:
+    st.session_state.pagina_actual = 1
+
+# Botones para cambiar de página
+col1, col2 = st.columns([3, 1])  # Ajustar proporción de columnas para mover el botón hacia la izquierda
+with col1:
+    if st.button("⬅️ Página anterior"):
+        st.session_state.pagina_actual = max(1, st.session_state.pagina_actual - 1)
+with col2:
+    if st.button("➡️ Página siguiente"):
+        st.session_state.pagina_actual += 1
+
+# Calcular el rango de películas a mostrar según la página actual
+inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
+fin = inicio + POSTERS_POR_PAGINA
+catalogo_pagina = merged_df.iloc[inicio:fin]
+
+# Mostrar texto de la página centrado encima de las películas
+st.markdown(
+    f"""
+    <div style="text-align: center; font-size: 24px; font-weight: bold; color: black; margin-bottom: 20px;">
+        Página {st.session_state.pagina_actual}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Mostrar pósters de la página actual
+cols = st.columns(5)
+for idx, (title, genre, year, poster) in enumerate(catalogo_pagina[["Title", "Genre", "Year", "Poster"]].values):
+    with cols[idx % 5]:
+        st.image(poster, width=120, caption=f"{title} ({year})")
+        st.write(f"Género: {genre}")
+
+
+
+
 st.write("Selecciona el método de búsqueda y luego ingresa el identificador para obtener recomendaciones.")
 
 # Selección del método de búsqueda
@@ -69,6 +134,7 @@ numero_recomendaciones = st.selectbox(
 # Entrada del usuario
 identificador_input = st.text_input(f"📌 Ingresa el `{metodo_busqueda}` de la película:")
 
+# Mostrar pósters según la página actual
 if identificador_input:
     try:
         # Mostrar información de la película seleccionada
@@ -79,10 +145,9 @@ if identificador_input:
             st.write("🎥 Película seleccionada:")
             poster = pelicula_seleccionada.iloc[0]["Poster"]
             title = pelicula_seleccionada.iloc[0]["Title"]
-            year = pelicula_seleccionada.iloc[0]["Year"]
             genre_seleccionado = pelicula_seleccionada.iloc[0]["Genre"]
             
-            st.image(poster, width=200, caption=f"{title} ({year})")
+            st.image(poster, width=200, caption=f"{title})")
             st.write(f"Género: {genre_seleccionado}")
 
             # Obtener recomendaciones
@@ -93,9 +158,14 @@ if identificador_input:
             # Dividir los géneros de la película seleccionada
             generos_seleccionados = set(genre_seleccionado.split("|"))
             
-            # Mostrar imágenes de las recomendaciones con colores según coincidencia de géneros
+            # Calcular el rango de pósters a mostrar según la página actual
+            inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
+            fin = inicio + POSTERS_POR_PAGINA
+            recomendaciones_pagina = recomendaciones.iloc[inicio:fin]
+
+            # Mostrar pósters de la página actual
             cols = st.columns(5)
-            for idx, (title, genre, year, poster) in enumerate(recomendaciones.values):
+            for idx, (title, genre, year, poster) in enumerate(recomendaciones_pagina.values):
                 with cols[idx % 5]:
                     st.image(poster, width=120, caption=f"{title} ({year})")
                     
