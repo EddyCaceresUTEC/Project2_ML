@@ -24,6 +24,7 @@ merged_df["movieId"] = pd.to_numeric(merged_df["movieId"], errors="coerce")
 
 # Reemplazar NaN con un valor válido (por ejemplo, 0)
 merged_df["movieId"] = merged_df["movieId"].fillna(0).astype(float).astype(int).astype(str)
+
 # =======================
 # a) BÚSQUEDA POR SIMILITUD VISUAL
 # =======================
@@ -38,7 +39,6 @@ def buscar_similares(id, n=5, metodo="imdbId"):
     """
     if metodo not in ["imdbId", "movieId"]:
         raise ValueError("El método de búsqueda debe ser 'imdbId' o 'movieId'.")
-
     index_pelicula = merged_df[merged_df[metodo] == str(id)].index[0]
     nn = NearestNeighbors(n_neighbors=n+1).fit(X_lda)
     dists, idxs = nn.kneighbors([X_lda[index_pelicula]])
@@ -83,9 +83,9 @@ st.markdown(
 if not st.session_state.mostrar_recomendaciones:
     st.markdown(
         """
-        <p style="text-align: left; font-size: 20px; font-weight: bold; color: black;">
+        <h2 style="text-align: center; color: black; font-weight: bold;">
             🎬 Catálogo completo de películas
-        </p>
+        </h2>
         """,
         unsafe_allow_html=True
     )
@@ -162,6 +162,35 @@ if not st.session_state.mostrar_recomendaciones:
             if st.button(f"Ver similares", key=f"recomendaciones_{imdbId}"):
                 st.session_state.mostrar_recomendaciones = True
                 st.session_state.pelicula_seleccionada = imdbId
+
+    # =======================
+    # TOP 10 PELÍCULAS POR CLUSTER
+    # =======================
+    st.markdown(
+        """
+        <h2 style="text-align: center; color: black; font-weight: bold;">
+            🔝 Top Películas Representativas por Cluster
+        </h2>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Selección de cluster
+    clusters_unicos = sorted(merged_df["cluster"].dropna().unique())
+    cluster_seleccionado = st.selectbox(
+        "Selecciona un cluster:",
+        options=clusters_unicos,
+        index=0
+    )
+
+    # Mostrar el top 10 de películas del cluster seleccionado
+    peliculas_cluster = merged_df[merged_df["cluster"] == cluster_seleccionado].head(10)  # Seleccionar las primeras 10 películas
+    cols = st.columns(5)
+    for idx, (title, genre, year, poster) in enumerate(peliculas_cluster[["Title", "Genre", "Year", "Poster"]].values):
+        with cols[idx % 5]:
+            st.image(poster, width=120, caption=f"{title} ({year})")
+            st.write(f"Género: {genre}")
+
 else:
     # Mostrar recomendaciones si se seleccionó una película
     pelicula_seleccionada = merged_df[merged_df["imdbId"] == st.session_state.pelicula_seleccionada]
