@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -68,7 +69,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.write("Explora el catálogo completo de películas. Usa los botones para navegar entre páginas.")
+# Texto más grande y en negrita
+st.markdown(
+    """
+    <p style="text-align: left; font-size: 20px; font-weight: bold; color: black;">
+        🎬 Catálogo completo de películas
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
 # =======================
 # PAGINACIÓN
@@ -80,6 +89,10 @@ POSTERS_POR_PAGINA = 20
 if "pagina_actual" not in st.session_state:
     st.session_state.pagina_actual = 1
 
+if "mostrar_recomendaciones" not in st.session_state:
+    st.session_state.mostrar_recomendaciones = False
+    st.session_state.pelicula_seleccionada = None
+
 # Botones para cambiar de página
 col1, col2 = st.columns([3, 1])  # Ajustar proporción de columnas para mover el botón hacia la izquierda
 with col1:
@@ -89,97 +102,78 @@ with col2:
     if st.button("➡️ Página siguiente"):
         st.session_state.pagina_actual += 1
 
-# Calcular el rango de películas a mostrar según la página actual
-inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
-fin = inicio + POSTERS_POR_PAGINA
-catalogo_pagina = merged_df.iloc[inicio:fin]
+# Mostrar recomendaciones si se seleccionó una película
+if st.session_state.mostrar_recomendaciones:
+    # Mostrar la película seleccionada en grande
+    pelicula_seleccionada = merged_df[merged_df["imdbId"] == st.session_state.pelicula_seleccionada]
+    if not pelicula_seleccionada.empty:
+        st.markdown(
+            """
+            <h2 style="text-align: center; color: blue; font-weight: bold;">
+                🎥 Película seleccionada
+            </h2>
+            """,
+            unsafe_allow_html=True
+        )
+        poster = pelicula_seleccionada.iloc[0]["Poster"]
+        title = pelicula_seleccionada.iloc[0]["Title"]
+        year = pelicula_seleccionada.iloc[0]["Year"]
+        genre = pelicula_seleccionada.iloc[0]["Genre"]
 
-# Mostrar texto de la página centrado encima de las películas
-st.markdown(
-    f"""
-    <div style="text-align: center; font-size: 24px; font-weight: bold; color: black; margin-bottom: 20px;">
-        Página {st.session_state.pagina_actual}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        # Mostrar la película seleccionada centrada
+        st.markdown(
+            f"""
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="{poster}" alt="{title}" style="width: 300px; border-radius: 10px;">
+                <h3 style="color: black; font-weight: bold;">{title} ({year})</h3>
+                <p style="color: gray; font-size: 18px;">Género: {genre}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-# Mostrar pósters de la página actual
-cols = st.columns(5)
-for idx, (title, genre, year, poster) in enumerate(catalogo_pagina[["Title", "Genre", "Year", "Poster"]].values):
-    with cols[idx % 5]:
-        st.image(poster, width=120, caption=f"{title} ({year})")
-        st.write(f"Género: {genre}")
+    # Mostrar las recomendaciones debajo
+    st.markdown(
+        """
+        <h2 style="text-align: center; color: green; font-weight: bold;">
+            Recomendaciones
+        </h2>
+        """,
+        unsafe_allow_html=True
+    )
+    recomendaciones = buscar_similares(st.session_state.pelicula_seleccionada, n=15, metodo="imdbId")
+    cols = st.columns(5)
+    for idx, (title, genre, year, poster) in enumerate(recomendaciones.values):
+        with cols[idx % 5]:
+            st.image(poster, width=120, caption=f"{title} ({year})")
+            st.write(f"Género: {genre}")
 
+    # Botón para regresar a la página principal
+    if st.button("Volver al catálogo"):
+        st.session_state.mostrar_recomendaciones = False
+        st.session_state.pelicula_seleccionada = None
+else:
+    # Calcular el rango de películas a mostrar según la página actual
+    inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
+    fin = inicio + POSTERS_POR_PAGINA
+    catalogo_pagina = merged_df.iloc[inicio:fin]
 
+    # Mostrar texto de la página centrado encima de las películas
+    st.markdown(
+        f"""
+        <div style="text-align: center; font-size: 24px; font-weight: bold; color: black; margin-bottom: 20px;">
+            Página {st.session_state.pagina_actual}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-
-st.write("Selecciona el método de búsqueda y luego ingresa el identificador para obtener recomendaciones.")
-
-# Selección del método de búsqueda
-metodo_busqueda = st.radio(
-    "Selecciona el método de búsqueda:",
-    options=["imdbId", "movieId"],
-    index=0  # Por defecto, selecciona imdbId
-)
-
-# Selección del número de recomendaciones
-numero_recomendaciones = st.selectbox(
-    "Selecciona el número de películas similares a mostrar:",
-    options=[5, 10, 15],
-    index=0  # Por defecto, selecciona 5
-)
-
-# Entrada del usuario
-identificador_input = st.text_input(f"📌 Ingresa el `{metodo_busqueda}` de la película:")
-
-# Mostrar pósters según la página actual
-if identificador_input:
-    try:
-        # Mostrar información de la película seleccionada
-        pelicula_seleccionada = merged_df[merged_df[metodo_busqueda] == str(identificador_input)]
-        if pelicula_seleccionada.empty:
-            st.error(f"No se encontró ninguna película con el `{metodo_busqueda}`: {identificador_input}")
-        else:
-            st.write("🎥 Película seleccionada:")
-            poster = pelicula_seleccionada.iloc[0]["Poster"]
-            title = pelicula_seleccionada.iloc[0]["Title"]
-            genre_seleccionado = pelicula_seleccionada.iloc[0]["Genre"]
-            
-            st.image(poster, width=200, caption=f"{title})")
-            st.write(f"Género: {genre_seleccionado}")
-
-            # Obtener recomendaciones
-            recomendaciones = buscar_similares(identificador_input, n=numero_recomendaciones, metodo=metodo_busqueda)
-            
-            st.write("📌 Recomendaciones:")
-            
-            # Dividir los géneros de la película seleccionada
-            generos_seleccionados = set(genre_seleccionado.split("|"))
-            
-            # Calcular el rango de pósters a mostrar según la página actual
-            inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
-            fin = inicio + POSTERS_POR_PAGINA
-            recomendaciones_pagina = recomendaciones.iloc[inicio:fin]
-
-            # Mostrar pósters de la página actual
-            cols = st.columns(5)
-            for idx, (title, genre, year, poster) in enumerate(recomendaciones_pagina.values):
-                with cols[idx % 5]:
-                    st.image(poster, width=120, caption=f"{title} ({year})")
-                    
-                    # Dividir los géneros de la recomendación
-                    generos_recomendacion = set(genre.split("|"))
-                    
-                    # Determinar el nivel de coincidencia
-                    if generos_seleccionados == generos_recomendacion:
-                        color = "red"  # Coinciden todos los géneros
-                    elif generos_seleccionados & generos_recomendacion:
-                        color = "blue"  # Coinciden al menos un género
-                    else:
-                        color = "black"  # No coinciden géneros
-                    
-                    # Mostrar el género con el color correspondiente
-                    st.markdown(f"<span style='color:{color};'>Género: {genre}</span>", unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
+    # Mostrar pósters de la página actual con botones debajo
+    cols = st.columns(5)
+    for idx, (title, genre, poster, imdbId) in enumerate(catalogo_pagina[["Title", "Genre", "Poster", "imdbId"]].values):
+        with cols[idx % 5]:
+            st.image(poster, width=120, caption=f"{title}")
+            st.write(f"Género: {genre}")
+            if st.button(f"Ver recomendaciones de {title}", key=f"recomendaciones_{imdbId}"):
+                st.session_state.mostrar_recomendaciones = True
+                st.session_state.pelicula_seleccionada = imdbId
