@@ -51,7 +51,7 @@ def filtrar_peliculas(genero=None, anio=None):
         df = df[df["Genre"].str.contains(genero, case=False, na=False)]
     if anio:
         df = df[df["Year"] == str(anio)]  # Filtrar por año como string
-    columnas = ["Title", "Genre", "cluster", "x", "y", "Year", "imdbId", "movieId"]
+    columnas = ["Title", "Genre", "Poster", "cluster", "x", "y", "Year", "imdbId", "movieId"]
     return df[columnas]
 
 # =======================
@@ -90,34 +90,43 @@ if not st.session_state.mostrar_recomendaciones:
         unsafe_allow_html=True
     )
 
-# =======================
-# PAGINACIÓN
-# =======================
-# Número de pósters por página
-POSTERS_POR_PAGINA = 20
+    # =======================
+    # FILTROS
+    # =======================
+    # Extraer géneros únicos
+    generos_unicos = set()
+    merged_df["Genre"].dropna().apply(lambda x: generos_unicos.update(x.split("|")))
+    generos_unicos = sorted(generos_unicos)
 
-# Aplicar estilos CSS globales para los botones
-st.markdown(
-    """
-    <style>
-    div[data-testid="stButton"] > button {
-        background-color: red;
-        color: white;
-        border: 2px solid black;
-        border-radius: 5px;
-        padding: 10px 20px;
-        font-size: 14px;
-        font-weight: bold;
-        cursor: pointer;
-        text-align: center;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+    # Selección de género
+    genero_seleccionado = st.selectbox(
+        "Filtrar por género:",
+        options=["Todos"] + generos_unicos,
+        index=0
+    )
 
-# Mostrar contenido según el estado
-if not st.session_state.mostrar_recomendaciones:
+    # Selección de año
+    anio_seleccionado = st.selectbox(
+        "Filtrar por año:",
+        options=["Todos"] + sorted(merged_df["Year"].dropna().unique()),
+        index=0
+    )
+
+    # Aplicar filtros
+    if genero_seleccionado != "Todos" or anio_seleccionado != "Todos":
+        catalogo_filtrado = filtrar_peliculas(
+            genero=genero_seleccionado if genero_seleccionado != "Todos" else None,
+            anio=anio_seleccionado if anio_seleccionado != "Todos" else None
+        )
+    else:
+        catalogo_filtrado = merged_df
+
+    # =======================
+    # PAGINACIÓN
+    # =======================
+    # Número de pósters por página
+    POSTERS_POR_PAGINA = 20
+
     # Botones para cambiar de página
     col1, col2 = st.columns([4, 1])  # Ajustar proporción de columnas para mover el botón hacia la izquierda
     with col1:
@@ -130,7 +139,7 @@ if not st.session_state.mostrar_recomendaciones:
     # Calcular el rango de películas a mostrar según la página actual
     inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
     fin = inicio + POSTERS_POR_PAGINA
-    catalogo_pagina = merged_df.iloc[inicio:fin]
+    catalogo_pagina = catalogo_filtrado.iloc[inicio:fin]
 
     # Mostrar texto de la página centrado encima de las películas
     st.markdown(
