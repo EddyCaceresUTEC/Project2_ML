@@ -59,6 +59,16 @@ def filtrar_peliculas(genero=None, anio=None):
 # =======================
 st.set_page_config(page_title="Recomendador de Películas", layout="centered")
 
+# Inicializar variables en st.session_state
+if "pagina_actual" not in st.session_state:
+    st.session_state.pagina_actual = 1
+
+if "mostrar_recomendaciones" not in st.session_state:
+    st.session_state.mostrar_recomendaciones = False
+
+if "pelicula_seleccionada" not in st.session_state:
+    st.session_state.pelicula_seleccionada = None
+
 # Título centrado y en rojo
 st.markdown(
     """
@@ -70,14 +80,15 @@ st.markdown(
 )
 
 # Texto más grande y en negrita
-st.markdown(
-    """
-    <p style="text-align: left; font-size: 20px; font-weight: bold; color: black;">
-        🎬 Catálogo completo de películas
-    </p>
-    """,
-    unsafe_allow_html=True
-)
+if not st.session_state.mostrar_recomendaciones:
+    st.markdown(
+        """
+        <p style="text-align: left; font-size: 20px; font-weight: bold; color: black;">
+            🎬 Catálogo completo de películas
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =======================
 # PAGINACIÓN
@@ -85,26 +96,65 @@ st.markdown(
 # Número de pósters por página
 POSTERS_POR_PAGINA = 20
 
-# Estado inicial de la página
-if "pagina_actual" not in st.session_state:
-    st.session_state.pagina_actual = 1
+# Aplicar estilos CSS globales para los botones
+st.markdown(
+    """
+    <style>
+    div[data-testid="stButton"] > button {
+        background-color: red;
+        color: white;
+        border: 2px solid black;
+        border-radius: 5px;
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        text-align: center;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-if "mostrar_recomendaciones" not in st.session_state:
-    st.session_state.mostrar_recomendaciones = False
-    st.session_state.pelicula_seleccionada = None
+# Mostrar contenido según el estado
+if not st.session_state.mostrar_recomendaciones:
+    # Botones para cambiar de página
+    col1, col2 = st.columns([4, 1])  # Ajustar proporción de columnas para mover el botón hacia la izquierda
+    with col1:
+        if st.button("⬅️ Anterior"):
+            st.session_state.pagina_actual = max(1, st.session_state.pagina_actual - 1)
+    with col2:
+        if st.button("➡️ Siguiente"):
+            st.session_state.pagina_actual += 1
 
-# Botones para cambiar de página
-col1, col2 = st.columns([3, 1])  # Ajustar proporción de columnas para mover el botón hacia la izquierda
-with col1:
-    if st.button("⬅️ Página anterior"):
-        st.session_state.pagina_actual = max(1, st.session_state.pagina_actual - 1)
-with col2:
-    if st.button("➡️ Página siguiente"):
-        st.session_state.pagina_actual += 1
+    # Calcular el rango de películas a mostrar según la página actual
+    inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
+    fin = inicio + POSTERS_POR_PAGINA
+    catalogo_pagina = merged_df.iloc[inicio:fin]
 
-# Mostrar recomendaciones si se seleccionó una película
-if st.session_state.mostrar_recomendaciones:
-    # Mostrar la película seleccionada en grande
+    # Mostrar texto de la página centrado encima de las películas
+    st.markdown(
+        f"""
+        <div style="text-align: center; font-size: 24px; font-weight: bold; color: black; margin-bottom: 20px;">
+            Página {st.session_state.pagina_actual}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Mostrar pósters de la página actual con botones debajo
+    cols = st.columns(5)
+    for idx, (title, genre, poster, imdbId) in enumerate(catalogo_pagina[["Title", "Genre", "Poster", "imdbId"]].values):
+        with cols[idx % 5]:
+            st.image(poster, width=120, caption=f"{title}")
+            st.write(f"Género: {genre}")
+            
+            # Botón para ver recomendaciones
+            if st.button(f"Ver similares", key=f"recomendaciones_{imdbId}"):
+                st.session_state.mostrar_recomendaciones = True
+                st.session_state.pelicula_seleccionada = imdbId
+else:
+    # Mostrar recomendaciones si se seleccionó una película
     pelicula_seleccionada = merged_df[merged_df["imdbId"] == st.session_state.pelicula_seleccionada]
     if not pelicula_seleccionada.empty:
         st.markdown(
@@ -152,28 +202,3 @@ if st.session_state.mostrar_recomendaciones:
     if st.button("Volver al catálogo"):
         st.session_state.mostrar_recomendaciones = False
         st.session_state.pelicula_seleccionada = None
-else:
-    # Calcular el rango de películas a mostrar según la página actual
-    inicio = (st.session_state.pagina_actual - 1) * POSTERS_POR_PAGINA
-    fin = inicio + POSTERS_POR_PAGINA
-    catalogo_pagina = merged_df.iloc[inicio:fin]
-
-    # Mostrar texto de la página centrado encima de las películas
-    st.markdown(
-        f"""
-        <div style="text-align: center; font-size: 24px; font-weight: bold; color: black; margin-bottom: 20px;">
-            Página {st.session_state.pagina_actual}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Mostrar pósters de la página actual con botones debajo
-    cols = st.columns(5)
-    for idx, (title, genre, poster, imdbId) in enumerate(catalogo_pagina[["Title", "Genre", "Poster", "imdbId"]].values):
-        with cols[idx % 5]:
-            st.image(poster, width=120, caption=f"{title}")
-            st.write(f"Género: {genre}")
-            if st.button(f"Ver recomendaciones de {title}", key=f"recomendaciones_{imdbId}"):
-                st.session_state.mostrar_recomendaciones = True
-                st.session_state.pelicula_seleccionada = imdbId
